@@ -76,7 +76,7 @@ def train_mixed_newton_damped(model: nn.Module, train_dataset: DataLoaderType, v
         Learning curve (list), containing quality criterion calculated each epoch of learning.
     """
     # Algorithm stop criteria parameters
-    epochs = int(1e+2)
+    epochs = int(1000)
 
     if save_every is None:
         save_every = epochs - 1

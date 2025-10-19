@@ -16,7 +16,8 @@ from model import Hammerstein
 # exp_name = "mnm"
 # exp_name = "mnm_damped"
 # exp_name = "conj_grad"
-exp_name = "dcd"
+exp_name = "sgd_auto"
+# exp_name = "dcd"
 
 add_folder = os.path.join("")
 curr_path = os.getcwd()
@@ -67,7 +68,7 @@ delay_d = 0
 # block_size == None is equal to block_size = signal length.
 # Block size is the same as chunk size 
 batch_size = 1
-chunk_num = 300
+chunk_num = 1
 chunk_size = int(79667/chunk_num)
 # L2 regularization parameter
 alpha = 0.0
@@ -151,10 +152,11 @@ model = Hammerstein(delays=delays, tap_num=tap_num, nonlin_order=nonlin_order,
 model.to(device)
 
 # Load non-linearity parameters, because we train only FIR in Hammerstein model
-model.nonlin.nonlin[0].data = torch.load("mnm_damped/weights_best_test_mnm_damped")["nonlin.nonlin.0"]
+# model.nonlin.nonlin[0].data = torch.load("mnm_damped/weights_best_test_mnm_damped")["nonlin.nonlin.0"]
 
 # Set parameters, which implied to be trainable
-weight_names = ['fir.conv_complex.weight']
+# weight_names = ['fir.conv_complex.weight']
+weight_names = ['nonlin.nonlin.0', 'fir.conv_complex.weight']
 
 print(f"Current model parameters number is {count_parameters(model, count_non_differentiable=False)}")
 param_names = [name for name, p in model.named_parameters()]
@@ -163,12 +165,12 @@ params = [(name, p.size(), p.dtype) for name, p in model.named_parameters()]
 # print(params)
 
 # Train type shows which algorithm is used for optimization.
-# train_type='sgd_auto' # gradient-based optimizer.
+train_type='sgd_auto' # gradient-based optimizer.
 # train_type='mnm_damped' # Damped Mixed Newton. Work only with models with complex parameters!
 # train_type='mnm_lev_marq' # Levenberg-Marquardt on base of Mixed Newton. Work only with models with complex parameters!
 # train_type='mnm_ls' # LS method with mixed hessian.
 # train_type='conj_grad' # Conjugate gradient method, using properties of mixed hessian.
-train_type='dcd' # Dichotomous Coordinate Descent method. Hessian and gradient are calculated for holomorphic errors.
+# train_type='dcd' # Dichotomous Coordinate Descent method. Hessian and gradient are calculated for holomorphic errors.
 # train_type='newton_damped' # Damped Newton. Can be used for models with real and complex parameters.
 # train_type='newton_lev_marq' # Levenberg-Marquardt on base of Newton. Can be used for models with real and complex parameters.
 # train_type='cubic_newton' # Cubic Newton. Currently work only with models with complex parameters!

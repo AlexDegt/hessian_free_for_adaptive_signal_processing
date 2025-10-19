@@ -73,10 +73,10 @@ def train_conjugate_gradient(model: nn.Module, train_dataset: DataLoaderType, va
         Learning curve (list), containing quality criterion calculated each epoch of learning.
     """
     # Algorithm stop criteria parameters
-    epochs = int(30)
+    epochs = int(1000)
 
     # Conjugate gradient algorithm number of steps per 1 epoch
-    step_num_conj_grad = 20
+    step_num_conj_grad = 59
 
     if save_every is None:
         save_every = epochs - 1
@@ -149,7 +149,7 @@ def train_conjugate_gradient(model: nn.Module, train_dataset: DataLoaderType, va
 
         # Implement conjugate gradient iterations using mixed hessian properties
         p, q = grad.clone(), grad.clone()
-        params = SICOracle.get_flat_params(name_list=weight_names)
+        direction = 0 #SICOracle.get_flat_params(name_list=weight_names)
         x = SICOracle.get_flat_params(name_list=weight_names)
         for _ in range(step_num_conj_grad):
 
@@ -208,12 +208,12 @@ def train_conjugate_gradient(model: nn.Module, train_dataset: DataLoaderType, va
             # # sys.exit()
 
             alpha = -1 * (torch.norm(q) ** 2) / (torch.conj(p) @ xi)
-            params += alpha * p
+            direction += alpha * p
             q_prev = q.clone()
             q += alpha * xi
             beta = (torch.norm(q) / torch.norm(q_prev)) ** 2
             p = q + beta * p
-        direction = params - x
+        # direction = params - x
 
         curr_params = x + mu * direction
         SICOracle.set_flat_params(curr_params, name_list=weight_names)

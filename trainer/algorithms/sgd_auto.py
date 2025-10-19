@@ -48,7 +48,7 @@ def train_sgd_auto(model: nn.Module, train_dataset: DataLoaderType, validate_dat
     Returns:
         Learning curve (list), containing quality criterion calculated each epoch of learning.
     """
-    epochs = int(1e+3)
+    epochs = int(1000)
 
     if save_every is None:
         save_every = epochs - 1
@@ -64,7 +64,7 @@ def train_sgd_auto(model: nn.Module, train_dataset: DataLoaderType, validate_dat
     
     lambda_lin = lambda epoch: 1#1 - (1 - 1e-1)*epoch/epochs
     # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_lin)
-    scheduler = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=1e-2, end_factor=1e-3, total_iters=epochs)
+    scheduler = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=1e-2, end_factor=1e-4, total_iters=epochs)
 
     print_every = 1
     timer = Timer()
@@ -81,7 +81,7 @@ def train_sgd_auto(model: nn.Module, train_dataset: DataLoaderType, validate_dat
         loss_val_test = accum_loss(test_dataset)
         criterion_val_test = quality_criterion(model, test_dataset)
         best_criterion_test = criterion_val_test
-        learning_curve_test.append(loss_val_test)
+        learning_curve_test.append(criterion_val_test)
         # learning_curve_test_qcrit.append(criterion_val_test)
         print("Begin: loss = {:.4e}, quality_criterion_test = {:.8f} dB.".format(loss_val_test, criterion_val_test))
         loss_val_train = accum_loss(train_dataset)
