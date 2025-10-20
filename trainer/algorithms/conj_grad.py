@@ -76,7 +76,7 @@ def train_conjugate_gradient(model: nn.Module, train_dataset: DataLoaderType, va
     epochs = int(1000)
 
     # Conjugate gradient algorithm number of steps per 1 epoch
-    step_num_conj_grad = 59
+    step_num_conj_grad = 20
 
     if save_every is None:
         save_every = epochs - 1
@@ -207,12 +207,20 @@ def train_conjugate_gradient(model: nn.Module, train_dataset: DataLoaderType, va
             # # print(xi)
             # # sys.exit()
 
-            alpha = -1 * (torch.norm(q) ** 2) / (torch.conj(p) @ xi)
+            # alpha = -1 * (torch.norm(q) ** 2) / (torch.conj(p) @ xi)
+            # direction += alpha * p
+            # q_prev = q.clone()
+            # q += alpha * xi
+            # beta = (torch.norm(q) / torch.norm(q_prev)) ** 2
+            # p = q + beta * p
+
+            alpha = (-1) * (p.conj() @ q) / (p.conj() @ xi)
             direction += alpha * p
             q_prev = q.clone()
             q += alpha * xi
-            beta = (torch.norm(q) / torch.norm(q_prev)) ** 2
-            p = q + beta * p
+            beta = (-1) * (q.conj() @ xi).conj() / (p.conj() @ xi)
+            p = (1) * q + beta * p
+
         # direction = params - x
 
         curr_params = x + mu * direction

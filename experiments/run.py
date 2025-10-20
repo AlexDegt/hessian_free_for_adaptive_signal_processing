@@ -15,8 +15,8 @@ from model import Hammerstein
 # Determine experiment name and create its directory
 # exp_name = "mnm"
 # exp_name = "mnm_damped"
-# exp_name = "conj_grad"
-exp_name = "sgd_auto"
+exp_name = "conj_grad"
+# exp_name = "sgd_auto"
 # exp_name = "dcd"
 
 add_folder = os.path.join("")
@@ -24,7 +24,7 @@ curr_path = os.getcwd()
 save_path = os.path.join(curr_path, add_folder, exp_name)
 # os.mkdir(save_path)
 
-device = "cuda:0"
+device = "cuda:3"
 # device = "cpu"
 seed = 964
 torch.manual_seed(seed)
@@ -165,11 +165,11 @@ params = [(name, p.size(), p.dtype) for name, p in model.named_parameters()]
 # print(params)
 
 # Train type shows which algorithm is used for optimization.
-train_type='sgd_auto' # gradient-based optimizer.
+# train_type='sgd_auto' # gradient-based optimizer.
 # train_type='mnm_damped' # Damped Mixed Newton. Work only with models with complex parameters!
 # train_type='mnm_lev_marq' # Levenberg-Marquardt on base of Mixed Newton. Work only with models with complex parameters!
 # train_type='mnm_ls' # LS method with mixed hessian.
-# train_type='conj_grad' # Conjugate gradient method, using properties of mixed hessian.
+train_type='conj_grad' # Conjugate gradient method, using properties of mixed hessian.
 # train_type='dcd' # Dichotomous Coordinate Descent method. Hessian and gradient are calculated for holomorphic errors.
 # train_type='newton_damped' # Damped Newton. Can be used for models with real and complex parameters.
 # train_type='newton_lev_marq' # Levenberg-Marquardt on base of Newton. Can be used for models with real and complex parameters.
