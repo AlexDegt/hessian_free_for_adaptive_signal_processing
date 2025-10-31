@@ -2,12 +2,14 @@ import torch
 from torch import nn, Tensor
 from typing import List, Tuple, Union, Callable, Iterable
 from .algorithms import train_mixed_newton_damped, train_mixed_newton_levenb_marq, \
-                        train_sgd_auto, train_sgd_manual, train_newton_damped, \
+                        train_sgd_auto, train_sgd_manual, train_newton_damped, train_mixed_newton_block, \
                         train_newton_levenb_marq, train_cubic_newton, train_cubic_newton_simplified, \
-                        train_mixed_ls, train_conjugate_gradient, train_coordinate_descent
+                        train_mixed_ls, train_conjugate_gradient, train_coordinate_descent, \
+                        train_conjugate_gradient_block
 
 OptionalInt = Union[int, None]
 OptionalStr = Union[str, None]
+DictOptional = Union[dict, None]
 
 DataLoaderType = Iterable
 StrOrList = Union[str, List[str], Tuple[str], None]
@@ -19,7 +21,7 @@ def train(model: nn.Module, train_dataset: DataLoaderType, loss_fn: LossFnType, 
           config_train: dict, batch_to_tensors: OptionalBatchTensor = None, validate_dataset: OptionalDataLoader = None, 
           test_dataset: OptionalDataLoader = None, train_type: OptionalStr = None,
           save_path: OptionalStr = None, exp_name: OptionalStr = None, save_every: OptionalInt = None, 
-          chunk_num: OptionalInt = None, weight_names: StrOrList = None, device: OptionalStr = None) -> None:
+          chunk_num: OptionalInt = None, weight_names: StrOrList = None, device: OptionalStr = None, config: DictOptional = None) -> None:
     """
     This function activates model training functions depending on the required training type.
 
@@ -59,6 +61,7 @@ def train(model: nn.Module, train_dataset: DataLoaderType, loss_fn: LossFnType, 
         weight_names (str or list of str, optional): By spceifying `weight_names` it is possible to compute gradient only
             for several named parameters. Defaults to "None".
         device (str, optional): device to implement calculations: "cpu" or "cuda:0". Defaults is None.
+        config (dict, optional): dictionary with all configurations.
 
     Returns:
         Learning curve (list), containing quality criterion calculated each epoch of learning.
@@ -84,7 +87,7 @@ def train(model: nn.Module, train_dataset: DataLoaderType, loss_fn: LossFnType, 
     if train_type == 'sgd_auto':
         learning_curve, best_criterion = train_sgd_auto(model, train_dataset, validate_dataset, test_dataset, loss_fn, 
                                                         quality_criterion, batch_to_tensors, config_train, save_path, exp_name,
-                                                        save_every)
+                                                        save_every, config)
     elif train_type == 'sgd_manual':
         learning_curve, best_criterion = train_sgd_manual(model, train_dataset, validate_dataset, test_dataset, loss_fn, 
                                                           quality_criterion, batch_to_tensors, save_path, exp_name, save_every, 
@@ -93,6 +96,11 @@ def train(model: nn.Module, train_dataset: DataLoaderType, loss_fn: LossFnType, 
         learning_curve, best_criterion = train_mixed_newton_damped(model, train_dataset, validate_dataset, test_dataset, loss_fn, 
                                                                    quality_criterion, batch_to_tensors, chunk_num, 
                                                                    save_path, exp_name, save_every, save_signals, weight_names)
+    elif train_type == 'mnm_block':
+        learning_curve, best_criterion = train_mixed_newton_block(model, train_dataset, validate_dataset, test_dataset, loss_fn, 
+                                                                   quality_criterion, batch_to_tensors, chunk_num, 
+                                                                   save_path, exp_name, save_every, save_signals, weight_names, config)
+    
     elif train_type == 'mnm_lev_marq':
         learning_curve, best_criterion = train_mixed_newton_levenb_marq(model, train_dataset, validate_dataset, test_dataset, loss_fn, 
                                                                         quality_criterion, batch_to_tensors, chunk_num, 
@@ -105,6 +113,10 @@ def train(model: nn.Module, train_dataset: DataLoaderType, loss_fn: LossFnType, 
         learning_curve, best_criterion = train_conjugate_gradient(model, train_dataset, validate_dataset, test_dataset, loss_fn, 
                                                                         quality_criterion, batch_to_tensors, chunk_num, 
                                                                         save_path, exp_name, save_every, save_signals, weight_names)
+    elif train_type == 'conj_grad_block':
+        learning_curve, best_criterion = train_conjugate_gradient_block(model, train_dataset, validate_dataset, test_dataset, loss_fn, 
+                                                                        quality_criterion, batch_to_tensors, chunk_num, 
+                                                                        save_path, exp_name, save_every, save_signals, weight_names, config)
     elif train_type == 'dcd':
         learning_curve, best_criterion = train_coordinate_descent(model, train_dataset, validate_dataset, test_dataset, loss_fn, 
                                                                         quality_criterion, batch_to_tensors, chunk_num, 

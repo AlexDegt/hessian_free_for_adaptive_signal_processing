@@ -10,6 +10,7 @@ from utils import Timer
 
 OptionalInt = Union[int, None]
 OptionalStr = Union[str, None]
+DictOptional = Union[dict, None]
 OptimizerType = torch.optim.Optimizer
 DataLoaderType = torch.utils.data.dataloader.DataLoader
 LossFnType = Union[Callable[[nn.Module, Tensor], Tensor], Callable[[nn.Module, Tuple[Tensor, ...]], Tensor]]
@@ -18,7 +19,7 @@ BatchTensorType = Callable[[Tensor], Tuple[Tensor, ...]]
 def train_sgd_auto(model: nn.Module, train_dataset: DataLoaderType, validate_dataset: DataLoaderType,
               test_dataset: DataLoaderType, loss_fn: LossFnType, quality_criterion: LossFnType, 
               batch_to_tensors: BatchTensorType, config_train: dict, save_path: OptionalStr = None, exp_name: OptionalStr = None, 
-              save_every: OptionalInt = None):
+              save_every: OptionalInt = None, config: DictOptional = None):
     """
     Function optimizes model parameters using common stochastic gradient descent, loss.backward() method.
 
@@ -44,27 +45,30 @@ def train_sgd_auto(model: nn.Module, train_dataset: DataLoaderType, validate_dat
         exp_name (str, optional): Name of simulation, which is reflected in function product names. Defaults to "None".
         save_every (int, optional): The number which reflects following: the results would be saved every save_every epochs.
             If save_every equals None, then results will be saved at the end of learning. Defaults to "None".
+        config (dict, optional): dictionary with all configurations.
 
     Returns:
         Learning curve (list), containing quality criterion calculated each epoch of learning.
     """
-    epochs = int(1000)
+    epochs = int(config["epochs"])
 
     if save_every is None:
         save_every = epochs - 1
 
+    lr = config["lr"]
+    betas = config["betas"]
+    start_factor = config["start_factor"]
+    end_factor = config["end_factor"]
+
     lrs = []
     learning_curve_test = []
     weight_decay = 0 # 1e-5
-    # optimizer = torch.optim.SGD(model.parameters(), lr=5.e-0, momentum=0.99, weight_decay=weight_decay, nesterov=False)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1.e-0, betas=(0.9, 0.9), weight_decay=weight_decay)
-    # optimizer = torch.optim.LBFGS(model.parameters(), lr=1e-0, history_size=1000, max_iter=10, line_search_fn="strong_wolfe", tolerance_change=1e-40, tolerance_grad=1e-40)
-    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, \
-    #                                                        patience=epochs, threshold=1e-2, threshold_mode='abs')
+    block_num = len(train_dataset)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=betas, weight_decay=weight_decay)
     
     lambda_lin = lambda epoch: 1#1 - (1 - 1e-1)*epoch/epochs
     # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_lin)
-    scheduler = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=1e-2, end_factor=1e-4, total_iters=epochs)
+    scheduler = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=start_factor, end_factor=end_factor, total_iters=epochs * block_num)
 
     print_every = 1
     timer = Timer()
@@ -82,21 +86,14 @@ def train_sgd_auto(model: nn.Module, train_dataset: DataLoaderType, validate_dat
         criterion_val_test = quality_criterion(model, test_dataset)
         best_criterion_test = criterion_val_test
         learning_curve_test.append(criterion_val_test)
-        # learning_curve_test_qcrit.append(criterion_val_test)
         print("Begin: loss = {:.4e}, quality_criterion_test = {:.8f} dB.".format(loss_val_test, criterion_val_test))
         loss_val_train = accum_loss(train_dataset)
         criterion_val_train = quality_criterion(model, train_dataset)
-        # learning_curve_train.append(loss_val_train)   
-        # learning_curve_train_qcrit.append(criterion_val_train)
         print("Begin: loss = {:.4e}, quality_criterion_train = {:.8f} dB.".format(loss_val_train, criterion_val_train))
         loss_val_validate = accum_loss(validate_dataset)
         criterion_val_validate = quality_criterion(model, validate_dataset)
-        # learning_curve_validate.append(loss_val_validate)
-        # learning_curve_validate_qcrit.append(criterion_val_validate)
         print("Begin: loss = {:.4e}, quality_criterion_validate = {:.8f} dB.".format(loss_val_validate, criterion_val_validate))
 
-    # print([name for name, p in model.named_parameters() if p.requires_grad == True])
-    # sys.exit()
 
     for epoch in range(epochs):
         timer.__enter__()
@@ -109,23 +106,24 @@ def train_sgd_auto(model: nn.Module, train_dataset: DataLoaderType, validate_dat
             optimizer.step(closure)
             scheduler.step()
             # scheduler.step(criterion_val)
-        with torch.no_grad():
-            criterion_val_test = quality_criterion(model, test_dataset)
-            if criterion_val_test < best_criterion_test:
-                best_criterion_test = criterion_val_test
-                torch.save(model.state_dict(), save_path+'weights_best_test'+exp_name)
-            lrs.append(optimizer.param_groups[0]['lr'])
-            learning_curve_test.append(criterion_val_test)
-            assert ~np.isnan(criterion_val_test), f"Algorithm diverged at the epoch {epoch}."
-            if epoch % save_every == 0:
-                np.save(save_path + f'lc_test{exp_name}.npy', np.array(learning_curve_test))
-                np.save(save_path + f'lrs{exp_name}.npy', np.array(lrs))
-        timer.__exit__()
-        if (epoch % print_every == 0) or (((j + 1) == len(train_dataset))):
-            # pass
-            print("Epoch is {},".format(epoch + 1) +\
-                " quality_criterion = {:.8f} dB, stepsize = {:.12e},".format(criterion_val_test, lrs[-1]) +\
-                " time elapsed: {:.4e} s,".format(timer.interval))
+            with torch.no_grad():
+                criterion_val_test = quality_criterion(model, test_dataset)
+                if criterion_val_test < best_criterion_test:
+                    best_criterion_test = criterion_val_test
+                    torch.save(model.state_dict(), save_path+'weights_best_test'+exp_name)
+                lrs.append(optimizer.param_groups[0]['lr'])
+                learning_curve_test.append(criterion_val_test)
+                assert ~np.isnan(criterion_val_test), f"Algorithm diverged at the epoch {epoch}."
+                if epoch % save_every == 0:
+                    np.save(save_path + f'lc_test{exp_name}.npy', np.array(learning_curve_test))
+                    np.save(save_path + f'lrs{exp_name}.npy', np.array(lrs))
+            timer.__exit__()
+            if (epoch % print_every == 0) or (((j + 1) == len(train_dataset))):
+                # pass
+                print("Epoch is {}, ".format(epoch + 1) +\
+                    "Block is {},".format(j + 1) +\
+                    " quality_criterion = {:.8f} dB, stepsize = {:.12e},".format(criterion_val_test, lrs[-1]) +\
+                    " time elapsed: {:.4e} s,".format(timer.interval))
             
     general_timer.__exit__()
     print(f"Total time elapsed: {general_timer.interval} s")

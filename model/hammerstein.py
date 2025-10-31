@@ -18,10 +18,6 @@ class Hammerstein(torch.nn.Module):
         self._tap_num = tap_num
         self._nonlin_order = nonlin_order
         
-        # Define branches
-        self.delay = torch.nn.ModuleList()
-        self.nonlin = torch.nn.ModuleList()
-        self.fir = torch.nn.ModuleList()
         # Delays of the signal applied after FIR
         self.delay = Delay(delays, device=device, dtype=dtype)
         # PA non-linearity model. Choose non-linearity basis
@@ -31,6 +27,15 @@ class Hammerstein(torch.nn.Module):
         
     def forward(self, x_in):
         x_curr = self.delay(x_in)
+
+        # # AFIR normalization for block 2-nd order methods convergence
+        # with torch.no_grad():
+        #     afir_param = self.fir.conv_complex.weight.data
+        #     nonlin_param = self.nonlin.nonlin[0].data
+        #     alpha = afir_param.norm().item()
+        #     afir_param /= alpha
+        #     nonlin_param *= alpha
+
         x_curr = self.nonlin(x_curr)
         output = self.fir(x_curr)
         return output

@@ -9,3 +9,6 @@ from .cubic_newton import train_cubic_newton
 from .cubic_newton_simplified import train_cubic_newton_simplified
 from .conj_grad import train_conjugate_gradient
 from .bdcd import train_coordinate_descent
+
+from .mixed_newton_block import train_mixed_newton_block
+from .conj_grad_block import train_conjugate_gradient_block

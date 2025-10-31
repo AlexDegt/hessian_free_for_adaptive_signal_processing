@@ -3,7 +3,7 @@ from torch import nn, Tensor
 from typing import Tuple, Union, Callable, List
 import numpy as np
 
-import sys
+import sys, os
 sys.path.append('../../')
 
 from utils import Timer
@@ -11,16 +11,17 @@ from oracle import Oracle
 
 OptionalInt = Union[int, None]
 OptionalStr = Union[str, None]
+DictOptional = Union[dict, None]
 StrOrList = Union[str, List[str], Tuple[str], None]
 DataLoaderType = torch.utils.data.dataloader.DataLoader
 LossFnType = Union[Callable[[nn.Module, Tensor], Tensor], Callable[[nn.Module, Tuple[Tensor, ...]], Tensor]]
 BatchTensorType = Callable[[Tensor], Tuple[Tensor, ...]]
 
-def train_conjugate_gradient(model: nn.Module, train_dataset: DataLoaderType, validate_dataset: DataLoaderType, 
+def train_conjugate_gradient_block(model: nn.Module, train_dataset: DataLoaderType, validate_dataset: DataLoaderType, 
                                    test_dataset: DataLoaderType, loss_fn: LossFnType, quality_criterion: LossFnType, 
                                    batch_to_tensors: BatchTensorType, chunk_num: OptionalInt = None, 
                                    save_path: OptionalStr = None, exp_name: OptionalStr = None, save_every: OptionalInt = None, 
-                                   save_signals: bool = False, weight_names: StrOrList = None):
+                                   save_signals: bool = False, weight_names: StrOrList = None, config: DictOptional = None):
     """
     Function implements conjugate gradient method using mixed hessian for holomorphic functions. 
     Current function uses oracle.Oracle.direction_through_jacobian function which firstly accumulates model output 
@@ -68,15 +69,16 @@ def train_conjugate_gradient(model: nn.Module, train_dataset: DataLoaderType, va
         save_signals (bool): The flag that shows, whether to save training signals or not. Defaults to False.
         weight_names (str or list of str, optional): By spceifying `weight_names` it is possible to compute gradient only
             for several named parameters. Defaults to "None".
+        config (dict, optional): dictionary with all configurations.
 
     Returns:
         Learning curve (list), containing quality criterion calculated each epoch of learning.
     """
     # Algorithm stop criteria parameters
-    epochs = int(10)
+    epochs = int(config["epochs"])
 
-    # Conjugate gradient algorithm number of steps per 1 epoch
-    step_num_conj_grad = 30
+    # Conjugate gradient algorithm number of steps per 1 parameter update
+    step_num_conj_grad = config["step_num_conj_grad"]
 
     if save_every is None:
         save_every = epochs - 1
@@ -85,9 +87,12 @@ def train_conjugate_gradient(model: nn.Module, train_dataset: DataLoaderType, va
 
     SICOracle = Oracle(model, loss_fn)
 
-    mu = 1.e-2
-    alpha = 1.
-    eps = 1e-4
+    mu = config["lr"]
+    mu_mult_init = config["start_factor"]
+    mu_mult_end = config["end_factor"]
+    alpha_reg = config["reg"]
+    leakage = config["leakage"]
+
     reg_param_curve = []
     learning_curve_train = []
     learning_curve_test = []
@@ -129,170 +134,116 @@ def train_conjugate_gradient(model: nn.Module, train_dataset: DataLoaderType, va
 
     epoch = 0
     min_grad_norm = 1e-8
+
+    batch_num = len(train_dataset)
+
+    decrease_cond_list = []
+    lrs = []
+
     for epoch in range(epochs):
-    # while grad_norm is None or grad_norm >= min_grad_norm:
-        timer.__enter__()
         # Accumulate hessian and gradient on the whole training dataset.
         # Combination of all batches on train dataset should be equal validation dataset
         for j, batch in enumerate(train_dataset):
 
+            timer.__enter__()
+
             delta_hess, delta_grad = SICOracle.direction_through_jacobian(batch, batch_to_tensors, weight_names=weight_names)
 
             with torch.no_grad():
-                if j % chunk_num == 0:
+                if j == 0 and epoch == 0:
                     hess = torch.zeros_like(delta_hess)
                     grad = torch.zeros_like(delta_grad)
-                hess += delta_hess
-                grad += delta_grad
+                
+                t = epoch * batch_num + j
+                if t < (batch_num * epochs - 1) / 2:
+                    mu_anneal = mu * (mu_mult_init - (2 * t / (batch_num * epochs - 1)) * (mu_mult_init - mu_mult_end))
+                else:
+                    mu_anneal = mu * mu_mult_end
+
+                hess = hess * leakage + (1 - leakage) * delta_hess.detach()
+                grad = grad * leakage + (1 - leakage) * delta_grad.detach()
                 del delta_hess, delta_grad
                 torch.cuda.empty_cache()
 
-        # Implement conjugate gradient iterations using mixed hessian properties
-        p, q = grad.clone(), grad.clone()
-        direction = 0 #SICOracle.get_flat_params(name_list=weight_names)
-        x = SICOracle.get_flat_params(name_list=weight_names)
-        for _ in range(step_num_conj_grad):
+            reg = alpha_reg*torch.eye(hess.size()[0], device=hess.device)
 
-            # Direct way of xi calculation
-            xi = hess @ p
-            # Alternative way of xi calculation
-            # def func1(d, y):
-            #     return (d - y).abs().square().sum()
-            
-            # def func2(d, y, xi_conj):
-            #     return torch.conj(xi_conj).view(-1) @ (d - y).view(-1)
+            # Implement conjugate gradient iterations using mixed hessian properties
+            p, q = grad.clone(), grad.clone()
+            direction = 0 #SICOracle.get_flat_params(name_list=weight_names)
+            x = SICOracle.get_flat_params(name_list=weight_names)
+            for i in range(step_num_conj_grad):
 
-            # def func(model, signal_batch):
-            #     radius = 1.e-2
-            #     inp, target, _ = batch_to_tensors(signal_batch)
-            #     model_out = model(inp)
+                # Direct way of xi calculation
+                xi = (hess + reg) @ p
+                alpha = (-1) * (p.conj() @ q) / (p.conj() @ xi)
+                direction += alpha * p
+                q_prev = q.clone()
+                q += alpha * xi
+                beta = (-1) * (q.conj() @ xi).conj() / (p.conj() @ xi)
+                p = q + beta * p
 
-            #     # backward не работает из-за get_flat_params/set_flat_params !!!!!!!!!!!!!!!
+            curr_params = x + mu_anneal * direction
+            SICOracle.set_flat_params(curr_params, name_list=weight_names)
 
-            #     # weights = model.state_dict()
-            #     # for name, param in model.state_dict().items():
-            #     #     model.state_dict()[name] += shift
-            #     # weights_shifted = 
+            decrease_cond = 2 * torch.real(direction.conj() @ grad).item()
 
-            #     params_curr = SICOracle.get_flat_params(name_list=weight_names)
-            #     SICOracle.add_flat_params(radius * p, name_list=weight_names)
-            #     # SICOracle.set_flat_params(params_curr + radius * p, name_list=weight_names)
-            #     model_out_vicinity = model(inp)
-            #     SICOracle.set_flat_params(params_curr, name_list=weight_names)
-            #     direct_deriv = -1 * (model_out_vicinity - model_out) / radius
-            #     # return func1(target, model_out)
-            #     return func2(target, model_out, direct_deriv)
-
-            # # def func(model, signal_batch):
-            # #     x, d, _ = batch_to_tensors(signal_batch)
-            # #     return (d - model(x)).abs().square().sum()
-            
-            # func_aux = func(model, batch)
-
-            # # def func(d, y):
-            # #     return (d - y).abs().square().sum()
-            # # func_aux = func(target, model_out)
-            # # func_aux = (target - model_out).abs().square().sum()
-            # # func_aux = direct_deriv @ torch.conj(target - model_out)
-            # # print([p.requires_grad for p in model.parameters()])
-            # # print(func_aux.size())
-            # # print(func_aux)
-            # # sys.exit()
-            # # print([(name, p.grad) for name, p in model.named_parameters()])
-            # # torch.autograd.set_detect_anomaly(True)
-            # func_aux.backward()
-            # # print([(name, p.grad) for name, p in model.named_parameters()])
-
-            # xi = torch.cat([p.grad.view(-1) for p in model.parameters()])
-            # # print(xi)
-            # # sys.exit()
-
-            # alpha = -1 * (torch.norm(q) ** 2) / (torch.conj(p) @ xi)
-            # direction += alpha * p
-            # q_prev = q.clone()
-            # q += alpha * xi
-            # beta = (torch.norm(q) / torch.norm(q_prev)) ** 2
-            # p = q + beta * p
-
-            alpha = (-1) * (p.conj() @ q) / (p.conj() @ xi)
-            direction += alpha * p
-            q_prev = q.clone()
-            q += alpha * xi
-            beta = (-1) * (q.conj() @ xi).conj() / (p.conj() @ xi)
-            p = (1) * q + beta * p
-
-        # direction = params - x
-
-        curr_params = x + mu * direction
-        SICOracle.set_flat_params(curr_params, name_list=weight_names)
-
-        # Update model parameters using damped line search
-        with torch.no_grad():
-            tmp_loss_val = accum_loss(train_dataset)
-            tmp_criterion_val = quality_criterion(model, train_dataset)
-        if tmp_loss_val <= loss_val_train + eps:
-            mu *= 1.6
-            if mu > 1.:
-                mu = 1.
-        else:
-            while tmp_loss_val > loss_val_train + eps:
-                mu /= 1.2
-                curr_params = x + mu * direction
+            if decrease_cond > 0:
+                curr_params = x + (mu_anneal / 90) * direction
                 SICOracle.set_flat_params(curr_params, name_list=weight_names)
-                with torch.no_grad():
-                    tmp_loss_val = accum_loss(train_dataset)
-                    tmp_criterion_val = quality_criterion(model, train_dataset)
-                if epoch % print_every == 0:
-                    print(f"Deverges, epoch is {epoch + 1}, quality_criterion_train = {tmp_criterion_val:.8f} dB," + \
-                            f"loss_val = {tmp_loss_val:.4f}, stepsize = {mu:.6e}")
-        loss_val_train = tmp_loss_val
-        criterion_val_train = tmp_criterion_val
 
-        # Track algorithm parameters
-        reg_param_curve.append(alpha)
-        grad_norm = torch.norm(grad).item()
-        grad_norm_curve.append(grad_norm)
-        weights_norm_curve.append(torch.norm(curr_params).item())
+            lrs.append(mu_anneal)
+            decrease_cond_list.append(decrease_cond)
+            np.save(os.path.join(save_path, f'decrease_cond.npy'), np.array(decrease_cond_list))
+            np.save(os.path.join(save_path, f'stepsize.npy'), np.array(lrs))
 
-        hess.detach()
-        grad.detach()
-        del grad, hess
-        torch.cuda.empty_cache()
+            # AFIR normalization for block 2-nd order methods convergence
+            with torch.no_grad():
+                afir_param = SICOracle._model.fir.conv_complex.weight.data
+                nonlin_param = SICOracle._model.nonlin.nonlin[0].data
+                gamma = afir_param.norm().item()
+                afir_param /= gamma
+                nonlin_param *= gamma
 
-        # Track NMSE values on validation and test dataset and save gradient, model parameters norm and 
-        # algorithm regularization history
-        with torch.no_grad():
-            loss_val_test = accum_loss(test_dataset)
-            criterion_val_test = quality_criterion(model, test_dataset)
-            loss_val_validate = accum_loss(validate_dataset)
-            criterion_val_validate = quality_criterion(model, validate_dataset)
+            # Track algorithm parameters
+            reg_param_curve.append(alpha_reg)
+            grad_norm = torch.norm(grad).item()
+            grad_norm_curve.append(grad_norm)
+            weights_norm_curve.append(torch.norm(curr_params).item())
 
-            learning_curve_test.append(loss_val_test)
-            learning_curve_train.append(loss_val_train)
-            learning_curve_validate.append(loss_val_validate)
-            learning_curve_test_qcrit.append(criterion_val_test)
-            learning_curve_train_qcrit.append(criterion_val_train)
-            learning_curve_validate_qcrit.append(criterion_val_validate)
+            # Track NMSE values on validation and test dataset and save gradient, model parameters norm and 
+            # algorithm regularization history
+            with torch.no_grad():
+                loss_val_test = accum_loss(test_dataset)
+                criterion_val_test = quality_criterion(model, test_dataset)
+                loss_val_validate = accum_loss(validate_dataset)
+                criterion_val_validate = quality_criterion(model, validate_dataset)
 
-            if criterion_val_test < best_criterion_test:
-                best_criterion_test = criterion_val_test
-                torch.save(model.state_dict(), save_path+'weights_best_test'+exp_name)
-            if epoch % save_every == 0:
-                np.save(save_path + f'lc_train{exp_name}.npy', np.array(learning_curve_train))
-                np.save(save_path + f'lc_test{exp_name}.npy', np.array(learning_curve_test))
-                np.save(save_path + f'lc_validate{exp_name}.npy', np.array(learning_curve_validate))
-                np.save(save_path + f'lc_qcrit_train{exp_name}.npy', np.array(learning_curve_train_qcrit))
-                np.save(save_path + f'lc_qcrit_test{exp_name}.npy', np.array(learning_curve_test_qcrit))
-                np.save(save_path + f'lc_qcrit_validate{exp_name}.npy', np.array(learning_curve_validate_qcrit))
-                np.save(save_path + f'grad_norm{exp_name}.npy', np.array(grad_norm_curve))
-                np.save(save_path + f'param_norm{exp_name}.npy', np.array(weights_norm_curve))
-        timer.__exit__()
-        if epoch % print_every == 0:
-            print(f"Epoch is {epoch + 1}, " + \
-                f"loss_train = {loss_val_train:.8f}, " + \
-                f"quality_criterion_train = {criterion_val_train:.8f} dB, stepsize = {mu:.6e}, " + \
-                f"|grad| = {grad_norm:.4e}, time elapsed: {timer.interval:.2e}")
-        epoch += 1
+                learning_curve_test.append(loss_val_test)
+                learning_curve_train.append(loss_val_train)
+                learning_curve_validate.append(loss_val_validate)
+                learning_curve_test_qcrit.append(criterion_val_test)
+                learning_curve_train_qcrit.append(criterion_val_train)
+                learning_curve_validate_qcrit.append(criterion_val_validate)
+
+                if criterion_val_test < best_criterion_test:
+                    best_criterion_test = criterion_val_test
+                    torch.save(model.state_dict(), save_path+'weights_best_test'+exp_name)
+                if epoch % save_every == 0:
+                    np.save(save_path + f'lc_train{exp_name}.npy', np.array(learning_curve_train))
+                    np.save(save_path + f'lc_test{exp_name}.npy', np.array(learning_curve_test))
+                    np.save(save_path + f'lc_validate{exp_name}.npy', np.array(learning_curve_validate))
+                    np.save(save_path + f'lc_qcrit_train{exp_name}.npy', np.array(learning_curve_train_qcrit))
+                    np.save(save_path + f'lc_qcrit_test{exp_name}.npy', np.array(learning_curve_test_qcrit))
+                    np.save(save_path + f'lc_qcrit_validate{exp_name}.npy', np.array(learning_curve_validate_qcrit))
+                    np.save(save_path + f'grad_norm{exp_name}.npy', np.array(grad_norm_curve))
+                    np.save(save_path + f'param_norm{exp_name}.npy', np.array(weights_norm_curve))
+            timer.__exit__()
+            if epoch % print_every == 0:
+                print(f"Epoch is {epoch + 1}, " + \
+                    f"Block is {j + 1}, " + \
+                    f"loss_test = {loss_val_test:.8f}, " + \
+                    f"quality_criterion_test = {criterion_val_test:.8f} dB, stepsize = {mu_anneal:.6e}, " + \
+                    f"|grad| = {grad_norm:.4e}, time elapsed: {timer.interval:.2e}")
 
         general_timer.__exit__()
         print(f"Total time elapsed: {general_timer.interval} s")
