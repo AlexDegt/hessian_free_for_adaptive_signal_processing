@@ -94,7 +94,6 @@ def train_sgd_auto(model: nn.Module, train_dataset: DataLoaderType, validate_dat
         criterion_val_validate = quality_criterion(model, validate_dataset)
         print("Begin: loss = {:.4e}, quality_criterion_validate = {:.8f} dB.".format(loss_val_validate, criterion_val_validate))
 
-
     for epoch in range(epochs):
         timer.__enter__()
         for j, batch in enumerate(train_dataset):
@@ -114,16 +113,16 @@ def train_sgd_auto(model: nn.Module, train_dataset: DataLoaderType, validate_dat
                 lrs.append(optimizer.param_groups[0]['lr'])
                 learning_curve_test.append(criterion_val_test)
                 assert ~np.isnan(criterion_val_test), f"Algorithm diverged at the epoch {epoch}."
-                if epoch % save_every == 0:
-                    np.save(save_path + f'lc_test{exp_name}.npy', np.array(learning_curve_test))
-                    np.save(save_path + f'lrs{exp_name}.npy', np.array(lrs))
             timer.__exit__()
-            if (epoch % print_every == 0) or (((j + 1) == len(train_dataset))):
-                # pass
-                print("Epoch is {}, ".format(epoch + 1) +\
-                    "Block is {},".format(j + 1) +\
-                    " quality_criterion = {:.8f} dB, stepsize = {:.12e},".format(criterion_val_test, lrs[-1]) +\
-                    " time elapsed: {:.4e} s,".format(timer.interval))
+        if epoch % save_every == 0:
+            np.save(save_path + f'lc_test{exp_name}.npy', np.array(learning_curve_test))
+            np.save(save_path + f'lrs{exp_name}.npy', np.array(lrs))
+        if (epoch % print_every == 0) or (((j + 1) == len(train_dataset))):
+            # pass
+            print("Epoch is {}, ".format(epoch + 1) +\
+                "Block is {},".format(j + 1) +\
+                " quality_criterion = {:.8f} dB, stepsize = {:.12e},".format(criterion_val_test, lrs[-1]) +\
+                " time elapsed: {:.4e} s,".format(timer.interval))
             
     general_timer.__exit__()
     print(f"Total time elapsed: {general_timer.interval} s")

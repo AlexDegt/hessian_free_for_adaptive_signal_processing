@@ -1,0 +1,68 @@
+# Simulation name
+# exp_name: mnm
+# exp_name: sgd_auto
+exp_name: cg_iter_50
+# exp_name: test
+# Folder to save simulation results in
+add_folder: ""
+
+device : cuda:3
+# device : cpu
+seed: 964
+
+# Data path
+data_path: ../data/LTE60M_334RB_fs122k_78960.mat
+# data_path: ../data/LTE60M_334RB_fs122k_79k.mat
+dtype: complex128
+# dtype: complex64
+
+# Padding type:
+# padding == 'same' means that all convolutions in model keep dimensionaity of tensors
+# padding == 'valid' means that all convolutions in model reduce dimensionaity of tensors
+padding: valid
+
+# Memory FIR filter number of taps
+tap_num: 51
+# Non-linerities order
+nonlin_order: 8
+# Delays applied to the signal before non-linearity application.
+# If non-linearity is 1-dimensional, each nested list must consist of 2 delays:
+# 1-st delay corresponds to the delay of pure signal x_n, 
+# 2-nd delay corresponds to the delay of signal magnitude |x_n|
+# If non-linearity is 2-dimensional, each nested list must consist of 3 delays etc.
+delays: [[0, 0]]
+
+# Delay of target signal w.r.t. the input signal
+delay_d: 0
+# Number of chunks to divide whole signal into
+# Total sample number 78960. 78960 / 1316 = 60 - chunk length
+chunk_num: 1316
+
+# Set parameters, which implied to be trainable
+weight_names: ['nonlin.nonlin.0', 'fir.conv_complex.weight']
+
+# Train type shows which algorithm is used for optimization.
+# train_type: 'sgd_auto' # gradient-based optimizer.
+# train_type: 'mnm_block' # Block Mixed Newton. Work only with models with complex parameters!
+train_type: 'conj_grad_block' # Block conjugate gradient method, using properties of mixed hessian.
+
+# General algorithm parameters
+epochs: 1
+lr: 3.e-2 # For CG and MNM
+# lr: 2.e-4 # For BGD
+# Linear scheduler start and end factors
+start_factor: 1
+end_factor: 1.e-4
+
+# Parameters general for CG and MNM
+# Hessian and gradient leakage
+leakage: 0.9
+# Hessian regularization
+reg: 1.e-4
+
+# BGD parameters
+betas: [0.9, 0.9]
+
+# CG parameters
+# Conjugate gradient algorithm number of steps per 1 parameter update
+step_num_conj_grad: 50

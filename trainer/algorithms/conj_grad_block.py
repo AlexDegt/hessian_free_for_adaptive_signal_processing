@@ -191,10 +191,8 @@ def train_conjugate_gradient_block(model: nn.Module, train_dataset: DataLoaderTy
                 curr_params = x + (mu_anneal / 90) * direction
                 SICOracle.set_flat_params(curr_params, name_list=weight_names)
 
-            lrs.append(mu_anneal)
-            decrease_cond_list.append(decrease_cond)
-            np.save(os.path.join(save_path, f'decrease_cond.npy'), np.array(decrease_cond_list))
-            np.save(os.path.join(save_path, f'stepsize.npy'), np.array(lrs))
+            # lrs.append(mu_anneal)
+            # decrease_cond_list.append(decrease_cond)
 
             # AFIR normalization for block 2-nd order methods convergence
             with torch.no_grad():
@@ -205,38 +203,40 @@ def train_conjugate_gradient_block(model: nn.Module, train_dataset: DataLoaderTy
                 nonlin_param *= gamma
 
             # Track algorithm parameters
-            reg_param_curve.append(alpha_reg)
+            # reg_param_curve.append(alpha_reg)
             grad_norm = torch.norm(grad).item()
-            grad_norm_curve.append(grad_norm)
-            weights_norm_curve.append(torch.norm(curr_params).item())
+            # grad_norm_curve.append(grad_norm)
+            # weights_norm_curve.append(torch.norm(curr_params).item())
 
             # Track NMSE values on validation and test dataset and save gradient, model parameters norm and 
             # algorithm regularization history
             with torch.no_grad():
                 loss_val_test = accum_loss(test_dataset)
                 criterion_val_test = quality_criterion(model, test_dataset)
-                loss_val_validate = accum_loss(validate_dataset)
-                criterion_val_validate = quality_criterion(model, validate_dataset)
+                # loss_val_validate = accum_loss(validate_dataset)
+                # criterion_val_validate = quality_criterion(model, validate_dataset)
 
-                learning_curve_test.append(loss_val_test)
-                learning_curve_train.append(loss_val_train)
-                learning_curve_validate.append(loss_val_validate)
+                # learning_curve_test.append(loss_val_test)
+                # learning_curve_train.append(loss_val_train)
+                # learning_curve_validate.append(loss_val_validate)
                 learning_curve_test_qcrit.append(criterion_val_test)
-                learning_curve_train_qcrit.append(criterion_val_train)
-                learning_curve_validate_qcrit.append(criterion_val_validate)
+                # learning_curve_train_qcrit.append(criterion_val_train)
+                # learning_curve_validate_qcrit.append(criterion_val_validate)
 
                 if criterion_val_test < best_criterion_test:
                     best_criterion_test = criterion_val_test
                     torch.save(model.state_dict(), save_path+'weights_best_test'+exp_name)
                 if epoch % save_every == 0:
-                    np.save(save_path + f'lc_train{exp_name}.npy', np.array(learning_curve_train))
-                    np.save(save_path + f'lc_test{exp_name}.npy', np.array(learning_curve_test))
-                    np.save(save_path + f'lc_validate{exp_name}.npy', np.array(learning_curve_validate))
-                    np.save(save_path + f'lc_qcrit_train{exp_name}.npy', np.array(learning_curve_train_qcrit))
+                    # np.save(os.path.join(save_path, f'decrease_cond.npy'), np.array(decrease_cond_list))
+                    # np.save(os.path.join(save_path, f'stepsize.npy'), np.array(lrs))
+                    # np.save(save_path + f'lc_train{exp_name}.npy', np.array(learning_curve_train))
+                    # np.save(save_path + f'lc_test{exp_name}.npy', np.array(learning_curve_test))
+                    # np.save(save_path + f'lc_validate{exp_name}.npy', np.array(learning_curve_validate))
+                    # np.save(save_path + f'lc_qcrit_train{exp_name}.npy', np.array(learning_curve_train_qcrit))
                     np.save(save_path + f'lc_qcrit_test{exp_name}.npy', np.array(learning_curve_test_qcrit))
-                    np.save(save_path + f'lc_qcrit_validate{exp_name}.npy', np.array(learning_curve_validate_qcrit))
-                    np.save(save_path + f'grad_norm{exp_name}.npy', np.array(grad_norm_curve))
-                    np.save(save_path + f'param_norm{exp_name}.npy', np.array(weights_norm_curve))
+                    # np.save(save_path + f'lc_qcrit_validate{exp_name}.npy', np.array(learning_curve_validate_qcrit))
+                    # np.save(save_path + f'grad_norm{exp_name}.npy', np.array(grad_norm_curve))
+                    # np.save(save_path + f'param_norm{exp_name}.npy', np.array(weights_norm_curve))
             timer.__exit__()
             if epoch % print_every == 0:
                 print(f"Epoch is {epoch + 1}, " + \

@@ -183,7 +183,7 @@ def train_mixed_newton_block(model: nn.Module, train_dataset: DataLoaderType, va
                 nonlin_param *= gamma
 
             # Track algorithm parameters
-            lrs.append(mu)
+            lrs.append(mu_anneal)
             grad_norm = torch.norm(grad).item()
             grad_norm_curve.append(grad_norm)
             weights_norm_curve.append(torch.norm(curr_params).item())

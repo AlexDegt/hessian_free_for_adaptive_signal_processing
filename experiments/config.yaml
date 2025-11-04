@@ -1,12 +1,15 @@
 # Simulation name
-# exp_name: mnm_block_1000_lr_5e_2_5e_6_leak_0_9
-# exp_name: sgd_auto_block_1000_lr_2e_4_2e_8_alpha_5e_3
-# exp_name: cg_block_60_iter_50_lam_0_1_lr_3e_2_3e_6_alpha_1e_4_neg_control_div_90_old_grad_check
-exp_name: test
+# exp_name: mnm
+# exp_name: sgd_auto
+# exp_name: sgd_auto_5k_epochs_lr_2e_5
+exp_name: sgd_auto_5k_epochs_lr_1e_5_betas_0_9_0_999
+# exp_name: cg_iter_10
+# exp_name: cg_iter_1
+# exp_name: test
 # Folder to save simulation results in
 add_folder: ""
 
-device : cuda:3
+device : cuda:7
 # device : cpu
 seed: 964
 
@@ -42,14 +45,14 @@ chunk_num: 1316
 weight_names: ['nonlin.nonlin.0', 'fir.conv_complex.weight']
 
 # Train type shows which algorithm is used for optimization.
-# train_type: 'sgd_auto' # gradient-based optimizer.
-train_type: 'mnm_block' # Block Mixed Newton. Work only with models with complex parameters!
+train_type: 'sgd_auto' # gradient-based optimizer.
+# train_type: 'mnm_block' # Block Mixed Newton. Work only with models with complex parameters!
 # train_type: 'conj_grad_block' # Block conjugate gradient method, using properties of mixed hessian.
 
 # General algorithm parameters
-epochs: 1
-lr: 3.e-2 # For CG and MNM
-# lr: 2.e-4 # For BGD
+epochs: 5000
+# lr: 1.e-2 # For CG and MNM
+lr: 1.e-5 # For BGD
 # Linear scheduler start and end factors
 start_factor: 1
 end_factor: 1.e-4
@@ -58,11 +61,11 @@ end_factor: 1.e-4
 # Hessian and gradient leakage
 leakage: 0.9
 # Hessian regularization
-reg: 1.e-4
+reg: 2.e-4
 
 # BGD parameters
-betas: [0.9, 0.9]
+betas: [0.9, 0.999]
 
 # CG parameters
 # Conjugate gradient algorithm number of steps per 1 parameter update
-step_num_conj_grad: 50
+step_num_conj_grad: 1
