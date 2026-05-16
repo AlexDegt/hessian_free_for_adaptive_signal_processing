@@ -8,7 +8,7 @@ class CausalFIR(torch.nn.Module):
         self.conv_complex = torch.nn.Conv1d(in_channels=in_, out_channels=out_, kernel_size=N, padding=0, dilation=dilation,
                                             groups=in_, bias=False, device=device, dtype=dtype)
         self.conv_complex.weight.data.real.zero_()
-        self.conv_complex.weight.data.real[:, :, -1] = 1.0
+        self.conv_complex.weight.data.real[:, :, -1] = 1
         self.conv_complex.weight.data.imag.zero_()
         self.padding_zeros_num = (N - 1) * dilation
 

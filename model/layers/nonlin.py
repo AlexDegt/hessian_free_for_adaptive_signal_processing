@@ -24,7 +24,7 @@ class ChebyPolynom(nn.Module):
             4-th dim. - signal block length.
         """
         x_carrier = x[..., 0, :]
-        nl_input = torch.abs(x[..., 1, :]).to(self.dtype)
+        nl_input = torch.abs(x[..., 1, :]).to(self.dtype) - 0.5 - 0.5j
         output = []
         for c in range(self.channel_num):
             tmp = torch.kron(torch.arccos(nl_input[:, c, :]).unsqueeze(-1), torch.arange(self.order, device=self.device))

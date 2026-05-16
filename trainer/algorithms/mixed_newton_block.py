@@ -154,8 +154,8 @@ def train_mixed_newton_block(model: nn.Module, train_dataset: DataLoaderType, va
                     grad = torch.zeros_like(delta_grad)
                 
                 t = epoch * batch_num + j
-                if t < batch_num * epochs / 2:
-                    mu_anneal = mu * (mu_mult_init - (2 * t / (batch_num * epochs - 1)) * (mu_mult_init - mu_mult_end))
+                if t < batch_num * epochs / 1:
+                    mu_anneal = mu * (mu_mult_init - (1 * t / (batch_num * epochs - 1)) * (mu_mult_init - mu_mult_end))
                 else:
                     mu_anneal = mu * mu_mult_end
 

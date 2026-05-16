@@ -1,12 +1,13 @@
 # Simulation name
-exp_name: mnm_forward_del_3
+# exp_name: mnm
 # exp_name: sgd_auto
-# exp_name: cg_iter_50
+exp_name: cg_iter_12
+# exp_name: cg_iter_13
 # exp_name: test
 # Folder to save simulation results in
 add_folder: ""
 
-device : cuda:3
+device : cuda:2
 # device : cpu
 seed: 964
 
@@ -30,11 +31,10 @@ nonlin_order: 8
 # 1-st delay corresponds to the delay of pure signal x_n, 
 # 2-nd delay corresponds to the delay of signal magnitude |x_n|
 # If non-linearity is 2-dimensional, each nested list must consist of 3 delays etc.
-# delays: [[0, 0], [2, 2], [-2, -2], [4, 4], [-4, -4], [6, 6], [-6, -6], [8, 8], [-8, -8], [10, 10], [-10, -10]]
 delays: [[0, 0]]
 
 # Delay of target signal w.r.t. the input signal
-delay_d: 1
+delay_d: 0
 # Number of chunks to divide whole signal into
 # Total sample number 78960. 78960 / 1316 = 60 - chunk length
 chunk_num: 1316
@@ -44,12 +44,12 @@ weight_names: ['nonlin.nonlin.0', 'fir.conv_complex.weight']
 
 # Train type shows which algorithm is used for optimization.
 # train_type: 'sgd_auto' # gradient-based optimizer.
-train_type: 'mnm_block' # Block Mixed Newton. Work only with models with complex parameters!
-# train_type: 'conj_grad_block' # Block conjugate gradient method, using properties of mixed hessian.
+# train_type: 'mnm_block' # Block Mixed Newton. Work only with models with complex parameters!
+train_type: 'conj_grad_block' # Block conjugate gradient method, using properties of mixed hessian.
 
 # General algorithm parameters
-epochs: 5
-lr: 3.e-2 # For CG and MNM
+epochs: 15
+lr: 1.e-2 # For CG and MNM
 # lr: 2.e-4 # For BGD
 # Linear scheduler start and end factors
 start_factor: 1
@@ -66,4 +66,4 @@ betas: [0.9, 0.9]
 
 # CG parameters
 # Conjugate gradient algorithm number of steps per 1 parameter update
-step_num_conj_grad: 50
+step_num_conj_grad: 12

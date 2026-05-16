@@ -14,14 +14,17 @@ from model import Hammerstein
 # exp_name = "mnm"
 # exp_name = "mnm_damped"
 # exp_name = "conj_grad"
-exp_name = "dcd"
+# exp_name = "cg_iter_5"
+# exp_name = "dcd"
+# exp_name = "sgd_auto"
+exp_name = "mnm_forward_del_3"
 
 add_folder = os.path.join("")
 curr_path = os.getcwd()
 load_path = os.path.join(curr_path, add_folder, exp_name)
 # os.mkdir(save_path)
 
-device = "cuda:0"
+device = "cuda:5"
 # device = "cpu"
 seed = 964
 torch.manual_seed(seed)
@@ -60,7 +63,7 @@ slot_num = 1
 # In mini-batch mode validation and test dataset are the same.
 train_slots_ind, validat_slots_ind, test_slots_ind = range(1), range(1), range(1)
 # Delay of target signal w.r.t. the input signal
-delay_d = 0
+delay_d = 1
 # batch_size == None is equal to batch_size = 1.
 # block_size == None is equal to block_size = signal length.
 # Block size is the same as chunk size 

@@ -26,6 +26,8 @@ class Hammerstein(torch.nn.Module):
         self.fir = CentralFIR(N=tap_num, mode=padding, device=device, dtype=dtype)
         
     def forward(self, x_in):
+        # print(x_in.size())
+        # sys.exit()
         x_curr = self.delay(x_in)
 
         # # AFIR normalization for block 2-nd order methods convergence
